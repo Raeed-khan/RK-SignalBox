@@ -1,0 +1,165 @@
+/*
+  ========================================================================
+  Project Name: RK-SIGNALBOX WIRELESS AUDITING TOOL
+  Version:      1.0
+  Author:       Raeed Khan
+  Hardware:     D1 Mini WEMOS ESP8266, 0.96" I2C OLED (SSD1306)
+  ========================================================================
+*/
+
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Display Configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Button Pin Definitions (D1 Mini GPIOs)
+#define BTN_UP     14 // D5
+#define BTN_DOWN   12 // D6
+#define BTN_SELECT 13 // D7
+
+// Menu Variables
+int currentMenuOption = 0;
+const int totalOptions = 4;
+String menuItems[totalOptions] = {"Scan Networks", "Deauth All", "Beacon Spam", "Device Info"};
+
+enum State { MENU, SCANNING, ATTACKING, INFO };
+State currentState = MENU;
+
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize Buttons
+  pinMode(BTN_UP, INPUT_PULLUP);
+  pinMode(BTN_DOWN, INPUT_PULLUP);
+  pinMode(BTN_SELECT, INPUT_PULLUP);
+
+  // Initialize OLED Display
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+
+  showBootScreen();
+}
+
+void loop() {
+  handleButtons();
+
+  display.clearDisplay();
+  
+  if (currentState == MENU) {
+    drawMenu();
+  } else if (currentState == SCANNING) {
+    drawScanningScreen();
+  } else if (currentState == ATTACKING) {
+    drawAttackScreen();
+  } else if (currentState == INFO) {
+    drawInfoScreen();
+  }
+
+  display.display();
+  delay(100);
+}
+
+// Custom Boot Screen (RK-SignalBox Intro)
+void showBootScreen() {
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  
+  display.setCursor(5, 15);
+  display.print("RK-SIGNAL");
+  display.setCursor(5, 32);
+  display.print("      BOX");
+  
+  display.setTextSize(1);
+  display.setCursor(30, 52);
+  display.print("by Raeed Khan");
+  
+  display.display();
+  delay(3000); // 3 seconds boot delay
+}
+
+// Draw the Interactive Menu
+void drawMenu() {
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("--- MAIN MENU ---");
+  display.println("");
+
+  for (int i = 0; i < totalOptions; i++) {
+    if (i == currentMenuOption) {
+      display.print("> "); // Selection indicator
+    } else {
+      display.print("  ");
+    }
+    display.println(menuItems[i]);
+  }
+}
+
+// Handle Button Presses
+void handleButtons() {
+  if (digitalRead(BTN_UP) == LOW) {
+    if (currentState == MENU) {
+      currentMenuOption = (currentMenuOption - 1 + totalOptions) % totalOptions;
+    }
+    delay(200); // Debounce
+  }
+  
+  if (digitalRead(BTN_DOWN) == LOW) {
+    if (currentState == MENU) {
+      currentMenuOption = (currentMenuOption + 1) % totalOptions;
+    }
+    delay(200);
+  }
+
+  if (digitalRead(BTN_SELECT) == LOW) {
+    if (currentState == MENU) {
+      if (currentMenuOption == 0) currentState = SCANNING;
+      else if (currentMenuOption == 1 || currentMenuOption == 2) currentState = ATTACKING;
+      else if (currentMenuOption == 3) currentState = INFO;
+    } else {
+      currentState = MENU; // Back to menu from any screen
+    }
+    delay(200);
+  }
+}
+
+// Dummy Screens for Framework
+void drawScanningScreen() {
+  display.setCursor(0, 10);
+  display.println("SCANNING WI-FI...");
+  display.println("Please wait...");
+  display.drawRect(10, 40, 108, 10, SSD1306_WHITE);
+  display.fillRect(12, 42, (millis() / 100) % 104, 6, SSD1306_WHITE);
+  display.setCursor(0, 55);
+  display.print("[Press Select to Back]");
+}
+
+void drawAttackScreen() {
+  display.setCursor(0, 10);
+  display.print("RUNNING: ");
+  display.println(menuItems[currentMenuOption]);
+  display.setCursor(0, 30);
+  display.println("Status: ACTIVE");
+  display.println("Packets Sent: " + String(millis()/50));
+  display.setCursor(0, 55);
+  display.print("[Press Select to Stop]");
+}
+
+void drawInfoScreen() {
+  display.setCursor(0, 0);
+  display.println("--- DEVICE INFO ---");
+  display.println("Hardware: ESP8266");
+  display.println("Chip ID: " + String(ESP.getChipId()));
+  display.println("Developer: Raeed Khan");
+  display.println("Firmware: Custom V1.0");
+  display.setCursor(0, 55);
+  display.print("[Press Select to Back]");
+}
